@@ -1,0 +1,72 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.Components.Forms
+@using MauiAppPeliculas.Models
+@inject NavigationManager Nav
+@inject MauiAppPeliculas.Services.UsuarioDtoServiceHttp Usuarios
+
+<h3>Iniciar sesión</h3>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="alert alert-danger">@error</div>
+}
+
+<EditForm Model="form" OnValidSubmit="HandleLogin">
+    <DataAnnotationsValidator />
+    <div class="mb-3">
+        <label class="form-label">Usuario o Email</label>
+        <InputText class="form-control" @bind-Value="form.Email" />
+        <ValidationMessage For="@(() => form.Email)" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Contraseña</label>
+        <InputText class="form-control" @bind-Value="form.Contrasena" type="password" />
+        <ValidationMessage For="@(() => form.Contrasena)" />
+    </div>
+
+    <button class="btn btn-primary" disabled="@isLoading">
+        @(isLoading ? "Ingresando..." : "Ingresar")
+    </button>
+</EditForm>
+
+@code {
+    private UsuarioLoginDto form = new();
+    private bool isLoading = false;
+    private string? error;
+
+    protected override void OnInitialized()
+    {
+        if (Usuarios.UsuarioDtoLogueado is not null)
+            Nav.NavigateTo("/home", replace: true);
+    }
+
+    private async Task HandleLogin()
+    {
+        error = null;
+        isLoading = true;
+        try
+        {
+            var res = await Usuarios.LoginAsync(form.Email, form.Contrasena);
+            if (res is null)
+            {
+                error = "Credenciales inválidas o servidor no disponible.";
+                return;
+            }
+
+            // por si tu LoginAsync no setea Sesion (redundante si ya lo hace):
+            //if (Usuarios.UsuarioDtoLogueado is null)
+            //   Usuarios.Sesion.Usuario = res;
+
+            Nav.NavigateTo("/home", replace: true); // <-- listo
+        }
+        catch (Exception ex)
+        {
+            error = $"Error de login: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

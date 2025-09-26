@@ -1,0 +1,129 @@
+## === Visual Studio / Rider / VS Code ===
+.vs/
+.idea/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+## === Build outputs ===
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Bb]uild/
+artifacts/
+
+## === .NET / NuGet ===
+*.psess
+*.vsp
+*.vspx
+*.pidb
+*.svclog
+*.scc
+project.lock.json
+project.fragment.lock.json
+paket-files/
+packages/
+*.nupkg
+*.snupkg
+*.nuspec
+.nuget/
+*.cache
+*.tmp
+
+## === MAUI / Xamarin / Mobile platforms ===
+# Android
+*.apk
+*.ap_ 
+*.aab
+*.keystore
+*.jks
+android/bin/
+android/obj/
+**/Android/bin/
+**/Android/obj/
+**/Resources/layout/*.[cm]s # compiled layouts
+
+# iOS/MacCatalyst
+*.ipa
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+**/*.xcworkspace/
+**/*.xcodeproj/*
+!**/*.xcodeproj/project.pbxproj
+!**/*.xcodeproj/xcshareddata/
+!**/*.xcodeproj/xcshareddata/WorkspaceSettings.xcsettings
+**/iOS/bin/
+**/iOS/obj/
+**/MacCatalyst/bin/
+**/MacCatalyst/obj/
+
+# Windows (WinUI)
+**/AppPackages/
+**/BundleArtifacts/
+**/Generated Files/
+*.appx
+*.appxbundle
+*.msix
+*.msixbundle
+Package.StoreAssociation.xml
+_pkginfo.txt
+
+## === Blazor / Web ===
+# Static web assets intermediates
+**/wwwroot/**/*.map
+**/wwwroot/**/node_modules/
+**/node_modules/
+**/dist/
+**/build/
+
+## === Test / Coverage ===
+TestResult*/
+[Bb]enchmarkDotNet.Artifacts/
+coverage*/
+*.coverage
+*.coveragexml
+*.opencover.xml
+lcov.info
+
+## === OS cruft ===
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+*.stackdump
+
+## === Tooling ===
+*.orig
+*.rej
+*.diff
+*.patch
+
+## === Local config you DON’T want in Git (optional – uncomment if needed) ===
+# appsettings.Development.json
+# appsettings.Local.json
+# secrets.json
+
+## === MAUI Hot Reload / cache ===
+*.mfrcache
+*.maui*cache
+*.hotreload
+
+## === User-specific launch/debug files ===
+**/Properties/launchSettings.json
+launchSettings.json
+
+## === SQLite / local data (if used locally only) ===
+*.db
+*.db-shm
+*.db-wal
+
+## === Logs / dumps ===
+*.log
+*.dmp
+
+## === VS WebView / Razor temp ===
+.scaffolding/
+.generated/

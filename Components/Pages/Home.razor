@@ -1,0 +1,172 @@
+﻿@page "/home"
+@using MauiAppPeliculas.Services
+@using MauiAppPeliculas.Models
+@using Microsoft.AspNetCore.Components.Routing
+@inject NavigationManager Nav
+@inject UsuarioDtoServiceHttp Usuarios
+@inject MauiAppPeliculas.Services.UsuarioDtoServiceHttp UsuarioService
+@inject NavigationManager Nav
+
+@if (UsuarioService?.Sesion?.Usuario is not null)
+{
+    <div class="d-flex justify-content-end mb-3">
+        <button class="btn btn-outline-danger btn-sm" @onclick="LogoutAsync" title="Cerrar sesión">
+            <i class="bi bi-box-arrow-right"></i> Cerrar sesión
+        </button>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="alert alert-danger">@error</div>
+}
+
+<div class="container mt-3">
+    <div class="card shadow-sm mb-4">
+        <div class="card-body d-flex align-items-center gap-3">
+            <img src='@AvatarUrl'
+                 alt="usuario"
+                 width="64" height="64"
+                 style="object-fit:cover; border-radius:50%; border:1px solid #eee"
+                 onerror="this.onerror=null;this.src='Imagenes/user-placeholder.png';" />
+            <div>
+                <h5 class="mb-1">¡Bienvenido, @NombreMostrado!</h5>
+                <div class="text-muted small">
+                    <span>@CorreoMostrado</span>
+                    @if (!string.IsNullOrWhiteSpace(RolMostrado))
+                    {
+                        <span class="badge bg-secondary ms-2 text-uppercase">@RolMostrado</span>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GRID de acciones -->
+    <div class="action-grid">
+        <NavLink class="action-tile" href="/tablapelicula" Match="NavLinkMatch.Prefix">
+            <span class="action-icon" aria-hidden="true">🎬</span>
+            <div class="action-text">
+                <p class="action-title mb-0">Películas</p>
+                <p class="action-sub mb-0">Ver, crear y editar</p>
+            </div>
+        </NavLink>
+
+        <NavLink class="action-tile" href="/tablausuario" Match="NavLinkMatch.Prefix">
+            <span class="action-icon" aria-hidden="true">👤</span>
+            <div class="action-text">
+                <p class="action-title mb-0">Usuarios</p>
+                <p class="action-sub mb-0">Administrar cuentas</p>
+            </div>
+        </NavLink>
+    </div>
+</div>
+
+<style>
+    /* ---- Botones tipo “tile” ---- */
+    .action-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1rem;
+    }
+
+    .action-tile {
+        display: flex;
+        align-items: center;
+        gap: .9rem;
+        padding: 1rem 1.1rem;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        text-decoration: none;
+        color: inherit;
+        box-shadow: 0 1px 2px rgba(0,0,0,.04);
+        transition: transform .08s ease, box-shadow .2s ease, border-color .2s ease;
+    }
+
+        .action-tile:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(0,0,0,.08);
+            border-color: #d1d5db;
+        }
+
+        .action-tile.active {
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 3px rgba(13,110,253,.15);
+        }
+
+    .action-icon {
+        font-size: 1.9rem;
+        line-height: 1;
+    }
+
+    .action-title {
+        font-weight: 600;
+        font-size: 1.05rem;
+    }
+
+    .action-sub {
+        font-size: .9rem;
+        color: #6b7280;
+    }
+</style>
+
+@code {
+
+
+    private Task LogoutAsync()
+    {
+        // Limpia la sesión (usuario/token) en el cliente
+        UsuarioService.Logout();
+
+        // Volver al login (forceLoad para recargar limpio el WebView/Blazor)
+        Nav.NavigateTo("/", forceLoad: true);
+        return Task.CompletedTask;
+    }
+
+
+
+    private string? error;
+
+    private const string ImagesFolder = "Imagenes"; // wwwroot/Imagenes
+
+    private string AvatarUrl => BuildAvatarUrl(Usuarios.UsuarioDtoLogueado?.Imagen);
+
+    private string NombreMostrado =>
+        string.IsNullOrWhiteSpace(Usuarios.UsuarioDtoLogueado?.Nombre) ? "Invitado" : Usuarios.UsuarioDtoLogueado!.Nombre;
+
+    private string CorreoMostrado =>
+        string.IsNullOrWhiteSpace(Usuarios.UsuarioDtoLogueado?.Email) ? "(sin correo)" : Usuarios.UsuarioDtoLogueado!.Email;
+
+    private string RolMostrado => Usuarios.UsuarioDtoLogueado?.Rol ?? string.Empty;
+
+    protected override void OnInitialized()
+    {
+        if (Usuarios.UsuarioDtoLogueado is null)
+        {
+            Nav.NavigateTo("/", replace: true);
+            return;
+        }
+    }
+
+    // Limpia comillas/espacios y arma la URL desde wwwroot/Imagenes si solo viene el nombre
+    private string BuildAvatarUrl(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return $"{ImagesFolder}/user-placeholder.png";
+
+        var name = raw
+            .Replace("\"", "")
+            .Replace("'", "")
+            .Replace("\\", "/")
+            .Trim();
+
+        if (Uri.TryCreate(name, UriKind.Absolute, out _))
+            return name;
+
+        if (name.StartsWith($"{ImagesFolder}/", StringComparison.OrdinalIgnoreCase))
+            return name;
+
+        return $"{ImagesFolder}/{name}";
+    }
+}

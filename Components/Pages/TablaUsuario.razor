@@ -1,0 +1,279 @@
+﻿@page "/tablausuario"
+@using MauiAppPeliculas.Services
+@using MauiAppPeliculas.Models
+@inject UsuarioDtoServiceHttp UsuarioService
+
+<ErrorBoundary>
+    <ChildContent>
+        <h3>Usuarios</h3>
+
+        @if (!string.IsNullOrEmpty(error))
+        {
+            <div class="alert alert-danger">@error</div>
+        }
+
+        @if (EsAdmin())
+        {
+            <button class="btn btn-primary mb-3" @onclick="MostrarFormularioAdd">Agregar Usuario</button>
+        }
+
+        <table class="table table-bordered table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>Imagen</th>
+                    <th>Nombre</th>
+                    <th>Email</th>
+                    <th>Rol</th>
+                    <th style="width:160px;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (usuarios is not null)
+                {
+                    @foreach (var u in usuarios)
+                    {
+                        <tr>
+                            <td>
+                                <img src="@GetImgSrc(u.Imagen)" alt="@u.Nombre"
+                                     width="50" height="50"
+                                     style="object-fit:cover; border-radius:50%;" />
+                            </td>
+                            <td>@u.Nombre</td>
+                            <td>@u.Email</td>
+                            <td>@u.Rol</td>
+                            <td>
+                                @if (EsAdmin())
+                                {
+                                    <button class="btn btn-sm btn-warning me-1" @onclick="() => EditarUsuario(u)">Editar</button>
+                                    <button class="btn btn-sm btn-danger" @onclick="() => ConfirmarEliminar(u.Id)">Eliminar</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+
+        @* ---------- Modal alta/edición ---------- *@
+        @if (mostrarFormulario)
+        {
+            <div class="modal-backdrop fade show"></div>
+            <div class="modal d-block" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">@((esAlta) ? "Agregar Usuario" : "Editar Usuario")</h5>
+                            <button type="button" class="btn-close" @onclick="CerrarFormulario"></button>
+                        </div>
+
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label>Nombre</label>
+                                <input class="form-control" @bind="usuarioDto.Nombre" />
+                            </div>
+                            <div class="mb-3">
+                                <label>Email</label>
+                                <input class="form-control" @bind="usuarioDto.Email" />
+                            </div>
+
+                            @if (esAlta)
+                            {
+                                <div class="mb-3">
+                                    <label>Contraseña</label>
+                                    <input type="password" class="form-control" @bind="credenciales.Contrasena" />
+                                </div>
+                            }
+
+                            <div class="mb-3">
+                                <label>Imagen (archivo o nombre)</label>
+                                <input class="form-control" @bind="usuarioDto.Imagen" placeholder="ej: avatar1.png o Imagenes/avatar1.png" />
+                                <small class="text-muted">Se mostrará desde wwwroot/Imagenes si ingresás solo el nombre.</small>
+                            </div>
+
+                            @if (EsAdmin())
+                            {
+                                <div class="mb-3">
+                                    <label>Rol</label>
+                                    <select class="form-control" @bind="usuarioDto.Rol">
+                                        <option value="Usuario">Usuario</option>
+                                        <option value="Admin">Admin</option>
+                                    </select>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" @onclick="CerrarFormulario">Cancelar</button>
+                            <button class="btn btn-primary" @onclick="GuardarUsuario">Guardar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @* ---------- Modal confirmación eliminar ---------- *@
+        @if (mostrarConfirmacionEliminar)
+        {
+            <div class="modal-backdrop fade show"></div>
+            <div class="modal d-block" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Confirmar eliminación</h5>
+                        </div>
+                        <div class="modal-body">
+                            ¿Está seguro que desea eliminar este usuario? Se eliminará permanentemente.
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" @onclick="CancelarEliminar">Cancelar</button>
+                            <button class="btn btn-danger" @onclick="EliminarUsuarioConfirmado">Eliminar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </ChildContent>
+
+    <ErrorContent>
+        @* Fallback si Blazor captura una excepción en el render *@
+        <div class="alert alert-danger">
+            Ocurrió un error al renderizar la página. Revisá la ventana **Output** para ver el detalle.
+        </div>
+    </ErrorContent>
+</ErrorBoundary>
+
+@code {
+    private string? error;
+    private List<UsuarioDto> usuarios = new();
+
+    // Form
+    private bool esAlta = false;
+    private UsuarioDto usuarioDto = new();          // datos visibles (sin contraseña)
+    private UsuarioLoginDto credenciales = new();   // solo contraseña para alta
+    private bool mostrarFormulario = false;
+
+    // Eliminar
+    private bool mostrarConfirmacionEliminar = false;
+    private int idUsuarioAEliminar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            usuarios = await UsuarioService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error cargando usuarios: {ex.Message}";
+            System.Diagnostics.Debug.WriteLine("[TablaUsuario] " + ex);
+        }
+    }
+
+    private bool EsAdmin()
+    {
+        // Paréntesis para evitar problemas de precedencia con && y ||
+        var rol = UsuarioService.UsuarioDtoLogueado?.Rol;
+        return (!string.IsNullOrWhiteSpace(rol) &&
+                rol.Equals("admin", StringComparison.OrdinalIgnoreCase))
+               || (rol?.Equals("Admin", StringComparison.Ordinal) == true);
+    }
+
+    private void MostrarFormularioAdd()
+    {
+        esAlta = true;
+        usuarioDto = new UsuarioDto { Rol = "Usuario" };
+        credenciales = new UsuarioLoginDto();
+        mostrarFormulario = true;
+    }
+
+    private void EditarUsuario(UsuarioDto u)
+    {
+        esAlta = false;
+        usuarioDto = new UsuarioDto
+        {
+            Id = u.Id,
+            Nombre = u.Nombre,
+            Email = u.Email,
+            Imagen = u.Imagen,
+            Rol = u.Rol
+        };
+        mostrarFormulario = true;
+    }
+
+    private async Task GuardarUsuario()
+    {
+        try
+        {
+            if (esAlta)
+            {
+                var reg = new UsuarioRegisterDto
+                {
+                    Nombre = usuarioDto.Nombre,
+                    Email = usuarioDto.Email,
+                    Imagen = usuarioDto.Imagen,
+                    Rol = usuarioDto.Rol,
+                    Contrasena = credenciales.Contrasena
+                };
+
+                await UsuarioService.RegisterAsync(reg);
+            }
+            else
+            {
+                await UsuarioService.UpdateAsync(usuarioDto);
+            }
+
+            mostrarFormulario = false;
+            usuarios = await UsuarioService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error guardando: {ex.Message}";
+            System.Diagnostics.Debug.WriteLine("[TablaUsuario] " + ex);
+        }
+    }
+
+    private void ConfirmarEliminar(int id)
+    {
+        idUsuarioAEliminar = id;
+        mostrarConfirmacionEliminar = true;
+    }
+
+    private async Task EliminarUsuarioConfirmado()
+    {
+        try
+        {
+            await UsuarioService.DeleteAsync(idUsuarioAEliminar);
+            mostrarConfirmacionEliminar = false;
+            usuarios = await UsuarioService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error eliminando: {ex.Message}";
+            System.Diagnostics.Debug.WriteLine("[TablaUsuario] " + ex);
+        }
+    }
+
+    private void CancelarEliminar() => mostrarConfirmacionEliminar = false;
+    private void CerrarFormulario() => mostrarFormulario = false;
+
+    // ======== IMAGENES: wwwroot/Imagenes ========
+    private string GetImgSrc(string? fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+            return "Imagenes/avatar1.png"; // usa un placeholder real
+
+        // URL absoluta (http/https) -> úsala tal cual
+        if (Uri.TryCreate(fileName, UriKind.Absolute, out _))
+            return fileName;
+
+        // Normalizá separadores y quitá barra inicial
+        var name = fileName.Replace("\\", "/").TrimStart('/');
+
+        // Si ya viene con "Imagenes/"
+        if (name.StartsWith("Imagenes/", StringComparison.OrdinalIgnoreCase))
+            return name;
+
+        // Solo nombre de archivo
+        return $"Imagenes/{name}";
+    }
+}

@@ -1,0 +1,369 @@
+﻿@page "/tablapelicula"
+@using MauiAppPeliculas.Services
+@using MauiAppPeliculas.Models.MauiAppPeliculas.Models
+@inject UsuarioDtoServiceHttp Usuarios
+@inject PeliculasDtoServiceHttp PeliculaService
+@inject NavigationManager Navigation
+@using MauiAppPeliculas.Models
+@inject MauiAppPeliculas.Services.UsuarioDtoServiceHttp UsuarioService
+@inject MauiAppPeliculas.Repositories.PeliculasRepositoryHttp Repo
+
+<h3 class="mb-3">Películas</h3>
+
+<!-- Botón Home arriba a la derecha -->
+<div class="d-flex justify-content-end mb-3">
+    <a href="/" class="btn btn-outline-secondary btn-sm" type="button" title="Ir al Home">
+        <i class="bi bi-house-door"></i> Home
+    </a>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(error))
+{
+    <div class="alert alert-danger" role="alert">
+        @error
+    </div>
+}
+
+<!-- Barra superior: Agregar (sólo admin) + búsqueda simple -->
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    @if (IsAdmin)
+    {
+        <button class="btn btn-primary" type="button" @onclick="Nueva">
+            <i class="bi bi-plus-circle"></i> Agregar Pelicula
+        </button>
+    }
+
+  @*   <div class="ms-auto d-flex align-items-center gap-2">
+        <input class="form-control" style="max-width: 260px;" placeholder="Buscar por título, género o año..."
+               @bind="search" @bind:event="oninput" />
+        <button class="btn btn-outline-secondary" type="button" title="Limpiar" @onclick="LimpiarBusqueda">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div> *@
+</div>
+
+<!-- Grid de cards -->
+@if (pelisFiltradas is null)
+{
+    <div class="text-muted">Cargando películas...</div>
+}
+else if (pelisFiltradas.Count == 0)
+{
+    <div class="text-muted">No se encontraron películas.</div>
+}
+else
+{
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-xl-4 g-3">
+        @foreach (var p in pelisFiltradas)
+        {
+            <div class="col">
+                <div class="card h-100 shadow-sm card-hover">
+                    <div class="ratio ratio-16x9">
+                        <img src="@GetImgOrFallback(p.Imagen)"
+                             onerror="this.onerror=null;this.src='Imagenes/avatar1.png';"
+                             class="card-img-top"
+                             style="object-fit:cover;" />
+                    </div>
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title mb-1">@p.Titulo</h5>
+                        <div class="text-muted small mb-2">
+                            @if (!string.IsNullOrWhiteSpace(p.Genero))
+                            {
+                                <span><i class="bi bi-tag"></i> @p.Genero</span>
+                            }
+                            @if (p.Anio is not null && p.Anio > 0)
+                            {
+                                <span class="ms-2"><i class="bi bi-calendar"></i> @p.Anio</span>
+                            }
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(p.Descripcion))
+                        {
+                            <p class="card-text flex-grow-1 text-truncate-3">@p.Descripcion</p>
+                        }
+                        else
+                        {
+                            <div class="flex-grow-1"></div>
+                        }
+
+                        @if (IsAdmin)
+                        {
+                            <div class="mt-2 d-flex gap-2">
+                                <button class="btn btn-warning btn-sm" type="button" title="Editar" @onclick="(() => Editar(p))">
+                                    <i class="bi bi-pencil-square"></i> Editar
+                                </button>
+                                <button class="btn btn-danger btn-sm" type="button" title="Eliminar" @onclick="(() => ConfirmarEliminar(p.Id))">
+                                    <i class="bi bi-trash"></i> Eliminar
+                                </button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<!-- Modal de alta/edición -->
+@if (mostrarForm)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal d-block" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title">@((editando ? "Editar" : "Nueva") + " película")</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="Cancelar"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Preview -->
+                    <div class="mb-3">
+                        <label class="form-label">Imagen (URL http/https o nombre de archivo en /Imagenes)</label>
+                        <input class="form-control" @bind="form.Imagen" />
+                        <div class="mt-2 border rounded overflow-hidden" style="max-height: 220px;">
+                            <img src="@GetImgOrFallback(form.Imagen)"
+                                 onerror="this.onerror=null;this.src='Imagenes/avatar1.png';"
+                                 style="width:100%;height:220px;object-fit:cover;" />
+                        </div>
+                        <div class="form-text">
+                            Ejemplos: <code>Imagenes/poster1.png</code> o <code>https://…</code>.
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Título</label>
+                            <input class="form-control" @bind="form.Titulo" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Género</label>
+                            <input class="form-control" @bind="form.Genero" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Año</label>
+                            <input class="form-control" type="number" @bind="form.Anio" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Descripción</label>
+                            <textarea class="form-control" rows="3" @bind="form.Descripcion"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" @onclick="Cancelar">
+                        <i class="bi bi-x-lg"></i> Cancelar
+                    </button>
+                    <button class="btn btn-success" type="button" @onclick="Guardar">
+                        <i class="bi bi-check2-circle"></i> Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal de confirmación de eliminación -->
+@if (mostrarConfirmacionEliminar)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal d-block" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmar eliminación</h5>
+                </div>
+                <div class="modal-body">
+                    ¿Está seguro que desea eliminar esta película? Se eliminará permanentemente.
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" @onclick="CancelarEliminar">
+                        Cancelar
+                    </button>
+                    <button class="btn btn-danger" type="button" @onclick="EliminarConfirmado">
+                        Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<PeliculaDto>? pelis;
+    private List<PeliculaDto>? pelisFiltradas;
+    private string? error;
+
+    private bool mostrarForm;
+    private bool editando;
+    private PeliculaDto form = new();
+
+    // confirmación de borrado
+    private bool mostrarConfirmacionEliminar;
+    private int idAEliminar;
+
+    private string? search;
+
+    private bool IsAdmin =>
+        (UsuarioService?.Sesion?.Usuario?.Rol ?? "").Equals("admin", StringComparison.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Cargar();
+    }
+
+    private async Task Cargar()
+    {
+        error = null;
+        try
+        {
+            pelis = await Repo.GetAllAsync();
+            AplicarFiltro();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error cargando películas: {ex.Message}";
+        }
+    }
+
+    private void AplicarFiltro()
+    {
+        if (pelis is null) { pelisFiltradas = null; return; }
+
+        var q = (search ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(q))
+        {
+            pelisFiltradas = pelis.ToList();
+            return;
+        }
+
+        q = q.ToLowerInvariant();
+        pelisFiltradas = pelis.Where(p =>
+            (p.Titulo ?? "").ToLowerInvariant().Contains(q) ||
+            (p.Genero ?? "").ToLowerInvariant().Contains(q) ||
+            (p.Anio?.ToString() ?? "").Contains(q)
+        ).ToList();
+    }
+
+    private void LimpiarBusqueda()
+    {
+        search = string.Empty;
+        AplicarFiltro();
+    }
+
+    private void Nueva()
+    {
+        error = null;
+        form = new PeliculaDto();
+        editando = false;
+        mostrarForm = true;
+    }
+
+    private void Editar(PeliculaDto p)
+    {
+        error = null;
+        form = new PeliculaDto
+        {
+            Id = p.Id,
+            Titulo = p.Titulo,
+            Genero = p.Genero,
+            Anio = p.Anio,
+            Descripcion = p.Descripcion,
+            Imagen = p.Imagen
+        };
+        editando = true;
+        mostrarForm = true;
+    }
+
+    private async Task Guardar()
+    {
+        error = null;
+        try
+        {
+            // normaliza imagen igual que el servicio
+            form.Imagen = NormalizeImagen(form.Imagen);
+
+            if (editando)
+                await Repo.UpdateAsync(form);
+            else
+                _ = await Repo.CreateAsync(form);
+
+            mostrarForm = false;
+            await Cargar();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error guardando: {ex.Message}";
+        }
+    }
+
+    private void Cancelar()
+    {
+        mostrarForm = false;
+        error = null;
+    }
+
+    // --- flujo de eliminación con modal ---
+    private void ConfirmarEliminar(int id)
+    {
+        idAEliminar = id;
+        mostrarConfirmacionEliminar = true;
+    }
+
+    private async Task EliminarConfirmado()
+    {
+        try
+        {
+            await Repo.DeleteAsync(idAEliminar);
+            mostrarConfirmacionEliminar = false;
+            await Cargar();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error eliminando: {ex.Message}";
+            mostrarConfirmacionEliminar = false;
+        }
+    }
+
+    private void CancelarEliminar()
+    {
+        mostrarConfirmacionEliminar = false;
+    }
+
+    // ---------- Helpers de imagen ----------
+    private static string GetImgOrFallback(string? src)
+        => string.IsNullOrWhiteSpace(src) ? "Imagenes/avatar1.png" : src;
+
+    private static string NormalizeImagen(string? s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return "Imagenes/avatar1.png";
+        s = s.Trim();
+
+        if (Uri.TryCreate(s, UriKind.Absolute, out var abs) &&
+            (abs.Scheme == Uri.UriSchemeHttp || abs.Scheme == Uri.UriSchemeHttps))
+            return s;
+
+        if (s.Contains('\\') || s.Contains(':'))
+            return $"Imagenes/{System.IO.Path.GetFileName(s)}";
+
+        if (s.StartsWith("Imagenes/", StringComparison.OrdinalIgnoreCase))
+            return s;
+
+        return $"Imagenes/{s}";
+    }
+}
+<style>
+    .text-truncate-3 {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .card-hover {
+        transition: transform .15s ease, box-shadow .15s ease;
+    }
+
+        .card-hover:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 .5rem 1rem rgba(0,0,0,.15);
+        }
+</style>
